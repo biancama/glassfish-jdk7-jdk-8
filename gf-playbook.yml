@@ -1,0 +1,21 @@
+---
+# file: webservers.yml
+
+- hosts: [all]
+  vars:
+      hosts_add_basic_ipv6: true
+      hosts_add_ansible_managed_hosts: false
+      hosts_entries:
+        - name: das.info.nl
+          ip: 192.168.33.11
+        - name: nodejdk7.info.nl
+          ip: 192.168.33.22
+        - name: nodejdk8.info.nl
+          ip: 192.168.33.33
+  roles:
+    - {role: 'bertvv.hosts'}
+
+- hosts: all
+  roles:
+    - install-gf
+

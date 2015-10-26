@@ -1,0 +1,19 @@
+---
+# defaults file for install-gf
+unzip_version: "6.0*"
+glassfish_home: /opt/glassfish4/glassfish
+java_cleanup: True
+admin_password: forzajuve
+base_dir: /opt
+deploy_dir: "{{ base_dir }}/glassfish4"
+#asadmin_file: "{{ deploy_dir }}/bin/asadmin"
+asadmin_file: "{{ deploy_dir }}/glassfish/bin/asadmin"
+asadmin_cmd: "{{ asadmin_file }} --user admin --passwordfile ~/password.txt"
+instance_nodes:
+  - jdk8
+  - jdk7
+das_domain_name: bva
+das_host: 192.168.33.11
+instances:
+  - {name: 'jdk7', address: '192.168.33.22' }
+  - {name: 'jdk8', address: '192.168.33.33' }

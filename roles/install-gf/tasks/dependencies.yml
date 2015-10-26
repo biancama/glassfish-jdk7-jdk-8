@@ -1,0 +1,12 @@
+- include: aptupd8_for_ubuntu_14_04.yml
+  when: ansible_distribution == 'Ubuntu' and ansible_distribution_release == 'trusty'
+
+- name: update apt cache
+  apt: update_cache=yes
+
+- name: Install unzip
+  apt: pkg=unzip={{ unzip_version }} state=present
+
+- name: Install Java Open JDK
+  apt: pkg=openjdk-{{ jdk_version }} state=present install_recommends=False
+

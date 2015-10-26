@@ -1,0 +1,140 @@
+#- name: ensure the gfish group (defaults to "gfish")
+# assumes this creates a gfish group (defaults to "gfish")
+- name: ensure the gfish user
+  user: name=gfish shell=/bin/bash uid=1004 generate_ssh_key=yes
+  tags: ['users', 'security', ]
+
+# deprecated since version 4.72
+#- name: ensure eventstore environment variable in .bashrc
+#  lineinfile: dest=/home/gfish/.bashrc
+#    regexp='^export\s+EVENTSTORE_URL='
+#    line="export EVENTSTORE_URL={{ eventstore_clusterdns }}"
+
+- name: Check if asadmin file is present
+  stat: path={{ asadmin_file }}
+  register: asadmin_cmd_reg
+  ignore_errors: True
+
+
+
+- name: Copy Glassfish4 zip
+  get_url:
+    url={{ glassfish_url }}/{{ glassfish_name }}
+    dest=~gfish/{{ glassfish_name }}
+    sha256sum={{ sha256sum }}
+  when: asadmin_cmd_reg.stat.exists  == false
+
+- name: ensure gfish install location
+  file: dest={{ deploy_dir }}
+    owner=gfish group=gfish mode=755 state=directory
+  tags: ['bin', ]
+
+
+
+- unarchive: src=~gfish/{{ glassfish_name }} dest={{ base_dir }} owner=gfish copy=no
+  when: asadmin_cmd_reg.stat.exists  == false
+
+
+- name: ensure lib/ext exists
+  file: path={{ deploy_dir }}/glassfish/lib/ext state=directory
+    owner=gfish group=gfish mode=0755
+  tags: ['bin', 'conf',]
+
+
+- name: install glassfish etc
+  template: src=templates/etc/glassfish.j2 dest=/etc/init.d/glassfish mode=0777
+  when: das_node
+
+- name: copy password file
+  template: src=templates/glassfish-password.txt.j2 dest={{ base_dir }}/glassfish4/glassfish-password.txt mode=0444
+
+- name: copy change master password file
+  template: src=templates/glassfish-change-master-password.txt.j2 dest={{ base_dir }}/glassfish4/glassfish-change-master-password.txt mode=0444
+
+- name: copy change admin password file
+  template: src=templates/glassfish-change-admin-password.txt.j2 dest={{ base_dir }}/glassfish4/glassfish-change-admin-password.txt mode=0444
+
+#- name: change master password
+#  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --passwordfile {{ base_dir }}/glassfish4/glassfish-change-master-password.txt change-master-password "
+#  when: asadmin_cmd_reg.stat.exists == false
+
+
+- name : delete domain1
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin delete-domain domain1"
+  when: das_node and asadmin_cmd_reg.stat.exists  == false
+
+- name : create domain
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --user admin --passwordfile {{ base_dir }}/glassfish4/glassfish-password.txt create-domain {{ das_domain_name }}"
+  when: das_node and asadmin_cmd_reg.stat.exists  == false
+
+#- name: Check for secure admin enabled (we should really turn off the admin console...)
+#  command: egrep 'secure-admin\s+enabled="true"' {{ deploy_dir }}/glassfish/domains/{{ das_domain_name }}/config/domain.xml
+#  register: secure_admin
+#  failed_when: secure_admin.rc == 2
+#  changed_when: secure_admin.rc == 1
+
+- name: restart domain
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --user admin --passwordfile={{ base_dir }}/glassfish4/glassfish-password.txt restart-domain {{ das_domain_name }}"
+  when: das_node and asadmin_cmd_reg.stat.exists  == false
+
+
+- name: enable secure admin
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --user admin --passwordfile={{ base_dir }}/glassfish4/glassfish-password.txt enable-secure-admin"
+  register: secure_admin_enabled
+  failed_when: secure_admin_enabled.rc != 0
+  when: das_node and secure_admin is defined  and  secure_admin.rc == 1
+
+#- name: stop domain1
+#  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin stop-domain {{ das_domain_name }}"
+#  when: das_node and asadmin_cmd_reg.stat.exists  == false
+
+- name: restart domain
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --user admin --passwordfile={{ base_dir }}/glassfish4/glassfish-password.txt restart-domain {{ das_domain_name }}"
+  when: das_node and asadmin_cmd_reg.stat.exists  == false
+
+
+
+#
+#- name: change admin password
+#  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --user admin --passwordfile {{ base_dir }}/glassfish4/glassfish-change-admin-password.txt change-admin-password"
+#  when: asadmin_cmd_reg.stat.exists  == false
+#
+#
+#- name: start domain1
+#  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --passwordfile {{ base_dir }}/glassfish4/glassfish-password.txt start-domain domain1"
+#  when: das_node and  asadmin_cmd_reg.stat.exists  == false
+#
+#- name: enable secure admin
+#  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --interactive=false --user admin --passwordfile {{ base_dir }}/glassfish4/glassfish-password.txt --host localhost --port 4848 enable-secure-admin"
+#  when: asadmin_cmd_reg.stat.exists  == false
+#
+#- name: stop domain1
+#  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin stop-domain domain1"
+#  when: das_node
+#
+#- name: start domain1
+#  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --user admin start-domain domain1"
+#  when: das_node
+
+
+#- file: path={{ base_dir }}/glassfish4/{{ item }} state=absent
+#  with_items:
+#    - glassfish-change-master-password.txt
+#    - glassfish-change-admin-password.txt
+#  when: das_node
+
+- name: create clusters jdk8
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --interactive=false --user admin  --passwordfile {{ base_dir }}/glassfish4/glassfish-password.txt create-cluster {{ item.name }}cluster"
+  with_items: instances
+  when: das_node
+
+- name: create node ssh
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --interactive=false --user admin --passwordfile {{ base_dir }}/glassfish4/glassfish-password.txt create-node-ssh --nodehost {{ item.address }} --installdir /opt/glassfish4 {{ item.name }}node"
+  with_items:  instances
+  when: das_node
+
+- name: create instance
+  command: "{{ base_dir }}/glassfish4/glassfish/bin/asadmin --interactive=false --user admin --host das.info.nl --passwordfile {{ base_dir }}/glassfish4/glassfish-password.txt create-instance --node {{ item.name }}node --cluster {{ item.name }}cluster {{ item.name }}inst"
+  with_items: instances
+  when: das_node
+

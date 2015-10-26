@@ -1,0 +1,10 @@
+GIT
+  remote: https://github.com/bertvv/ansible-role-hosts
+  ref: master
+  sha: ec8eda6e99789cc62ce08729f6a984db39487afa
+  specs:
+    bertvv.hosts (1.0.1)
+
+DEPENDENCIES
+  bertvv.hosts (>= 0)
+

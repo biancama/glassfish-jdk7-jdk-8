@@ -1,0 +1,8 @@
+---
+- name: Install openjdk-r Java PPA
+  apt_repository: repo='ppa:openjdk-r/ppa' state=present
+  when: java_needs_8
+
+- name: Remove openjdk-r Java PPA
+  apt_repository: repo='ppa:openjdk-r/ppa' state=present
+  when: java_cleanup and not java_needs_8
